@@ -2,72 +2,58 @@ import streamlit as st
 import pickle
 import numpy as np
 import os
-from streamlit.components.v1 import html
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 
-# --- CONFIGURATION & INITIAL SETUP ---
-
-# Set page configuration with a themed feel
+# Set page configuration
 st.set_page_config(
     page_title="SCWG Hydrogen Production Predictor",
-    page_icon="🧪",
+    page_icon="⚡",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS for a cleaner look and feel
+# Custom CSS for better styling
 st.markdown("""
 <style>
-/* Main container padding */
-.main-content {
-    padding-top: 2rem;
-}
-
-/* Sidebar styling */
-.css-1lcbmhc, .css-1lcbmhc > div {
-    background-color: #f0f2f6; /* Light gray background for sidebar */
-}
-
-/* Header style for results */
-h3 {
-    color: #007BFF; /* Primary color for section headers */
-}
-
-/* Metric card styling */
-[data-testid="stMetric"] {
-    background-color: #FFFFFF;
-    border: 1px solid #E0E0E0;
-    padding: 15px;
-    border-radius: 10px;
-    box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.05);
-}
-
-/* Success/Error message styling */
-.stSuccess, .stError {
-    border-radius: 8px;
-}
-
-/* Submit button styling */
-.stButton>button {
-    width: 100%;
-    border-radius: 8px;
-    background-color: #28a745; /* Green color */
-    color: white;
-    font-weight: bold;
-    height: 3rem;
-    font-size: 1.1rem;
-}
+    .main-header {
+        font-size: 3rem;
+        color: #1f77b4;
+        text-align: center;
+        margin-bottom: 2rem;
+    }
+    .metric-card {
+        background-color: #f0f2f6;
+        padding: 1.5rem;
+        border-radius: 10px;
+        border-left: 4px solid #1f77b4;
+    }
+    .environment-card {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 1.5rem;
+        border-radius: 10px;
+    }
+    .prediction-card {
+        background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+        color: white;
+        padding: 1.5rem;
+        border-radius: 10px;
+    }
+    .input-section {
+        background-color: #ffffff;
+        padding: 2rem;
+        border-radius: 10px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        margin-bottom: 2rem;
+    }
 </style>
 """, unsafe_allow_html=True)
 
-
-# Load the trained model and scaler (using st.cache_data instead of st.cache_resource for objects)
-@st.cache_data
+# Load the trained model and scaler
+@st.cache_resource
 def load_model():
     try:
-        # Check if file exists before trying to open
-        if not os.path.exists('rf_model.pkl'):
-            st.error("Model file 'rf_model.pkl' not found.")
-            return None
         with open('rf_model.pkl', 'rb') as file:
             model = pickle.load(file)
         return model
@@ -75,13 +61,9 @@ def load_model():
         st.error(f"Error loading model: {str(e)}")
         return None
 
-@st.cache_data
+@st.cache_resource
 def load_scaler():
     try:
-        # Check if file exists before trying to open
-        if not os.path.exists('scaler.pkl'):
-            st.error("Scaler file 'scaler.pkl' not found.")
-            return None
         with open('scaler.pkl', 'rb') as file:
             scaler = pickle.load(file)
         return scaler
@@ -93,224 +75,252 @@ def load_scaler():
 model = load_model()
 scaler = load_scaler()
 
-# Carbon reduction factors (kgCO2e per tonne of waste treated via SCWG instead of land disposal)
+# Constants
 CARBON_REDUCTION_FACTORS = {
-    'Sewage Sludge': 310,       # Average of 150-550 kgCO2e/tonne
-    'Lignocellulosic Biomass': 400, # Average of 150-450 kgCO2e/tonne
-    'Petrochemical': 240         # Average of 400-900 kgCO2e/tonne
+    'Sewage Sludge': 310,
+    'Lignocellulosic Biomass': 400,
+    'Petrochemical': 240
 }
 
-# Conversion factors
-TREE_SEQUESTRATION_FACTOR = 25  # kg CO2/tree/year
-CAR_EMISSIONS_FACTOR = 0.250    # kg CO2/km for 1.8L gasoline car
-BLUE_H2_SAVINGS_FACTOR = 1.6    # kg CO2 saved per kg H2 compared to gasoline (simplified factor)
+TREE_SEQUESTRATION_FACTOR = 25
+CAR_EMISSIONS_FACTOR = 0.250
+BLUE_H2_SAVINGS_FACTOR = 1.6
 
-# --- MAIN APP LAYOUT ---
-
-st.title("🧪 SCWG Hydrogen Production Predictor")
+# Header Section
+col1, col2, col3 = st.columns([1, 2, 1])
+with col2:
+    st.markdown('<h1 class="main-header">⚡ SCWG Hydrogen Production Predictor</h1>', unsafe_allow_html=True)
+    
 st.markdown("""
-Predict **Hydrogen Production** from **Supercritical Water Gasification (SCWG)** and calculate the environmental benefits.
-""")
+<div style='text-align: center; font-size: 1.2rem; color: #666; margin-bottom: 3rem;'>
+Predict hydrogen production from Supercritical Water Gasification (SCWG) of various waste materials
+</div>
+""", unsafe_allow_html=True)
 
-# Use Tabs to separate input, prediction, and instructions
-tab_predict, tab_info = st.tabs(["🚀 Predict H₂ Production", "💡 About & Instructions"])
+# Main content
+col1, col2 = st.columns([2, 1])
 
-with tab_predict:
+with col1:
+    st.markdown('<div class="input-section">', unsafe_allow_html=True)
     
-    # Create input form with a sidebar for global controls
-    with st.form("prediction_form_v2"):
-        st.header("Input Parameters")
+    # Input form with tabs for better organization
+    tab1, tab2 = st.tabs(["🧪 Waste Composition", "⚙️ Process Conditions"])
+    
+    with tab1:
+        st.subheader("Waste Composition Analysis")
         
-        # Two columns for inputs
-        col_comp, col_proc = st.columns(2)
+        col1, col2 = st.columns(2)
         
-        with col_comp:
-            st.subheader("🗑️ Waste Composition (Ultimate Analysis)")
-            st.markdown("Enter the chemical composition percentages of the dry waste material.")
-            
-            # Group C and H, N and O for better visual flow
-            comp_col1, comp_col2 = st.columns(2)
-            
-            with comp_col1:
-                C = st.number_input("Carbon (C) %", min_value=0.0, max_value=100.0, value=50.0, step=0.1, help="Carbon percentage in the dry waste.")
-                N = st.number_input("Nitrogen (N) %", min_value=0.0, max_value=100.0, value=2.0, step=0.1, help="Nitrogen percentage in the dry waste.")
-            
-            with comp_col2:
-                H = st.number_input("Hydrogen (H) %", min_value=0.0, max_value=100.0, value=6.0, step=0.1, help="Hydrogen percentage in the dry waste.")
-                O = st.number_input("Oxygen (O) %", min_value=0.0, max_value=100.0, value=30.0, step=0.1, help="Oxygen percentage in the dry waste.")
-                
-            # Calculate and display ultimate analysis sum
-            ultimate_sum = C + H + N + O
-            st.info(f"Ultimate Analysis Sum: **{ultimate_sum:.1f}%**")
-            # Validation feedback moved to the main prediction logic, but this visual cue remains
+        with col1:
+            C = st.slider("Carbon (C) %", min_value=0.0, max_value=100.0, value=50.0, step=0.1, 
+                         help="Carbon content in the waste material")
+            H = st.slider("Hydrogen (H) %", min_value=0.0, max_value=100.0, value=6.0, step=0.1,
+                         help="Hydrogen content in the waste material")
         
-        with col_proc:
-            st.subheader("🌡️ Process Conditions & Feedstock")
-            st.markdown("Specify the SCWG operating parameters and waste details.")
-            
-            # Process Condition Inputs
-            SC = st.number_input("Solid Content (%)", min_value=0.1, max_value=99.9, value=15.0, step=0.1, help="Percentage of solid material in the aqueous feed slurry.")
-            
-            proc_col1, proc_col2 = st.columns(2)
-            with proc_col1:
-                TEMP = st.slider("Temperature (°C)", min_value=300, max_value=650, value=500, help="Reaction temperature (Supercritical range is > 374 °C).")
-                P = st.slider("Pressure (MPa)", min_value=10, max_value=35, value=25, help="Reaction pressure (Critical pressure is 22.1 MPa).")
-            with proc_col2:
-                RT = st.number_input("Reaction Time (min)", min_value=0.0, value=30.0, step=1.0, help="Duration of the gasification process.")
-                
-            st.markdown("---")
-            
-            # Waste Details
-            waste_col1, waste_col2 = st.columns(2)
-            with waste_col1:
-                waste_type = st.selectbox(
-                    "Waste Type",
-                    options=list(CARBON_REDUCTION_FACTORS.keys()),
-                    index=0,
-                    help="Select the waste category to estimate CO₂ reduction from avoiding land disposal."
-                )
-            with waste_col2:
-                waste_amount = st.number_input("Waste Amount (kg)", min_value=0.1, value=100.0, step=1.0, help="Total mass of dry waste treated for this batch.")
+        with col2:
+            N = st.slider("Nitrogen (N) %", min_value=0.0, max_value=100.0, value=2.0, step=0.1,
+                         help="Nitrogen content in the waste material")
+            O = st.slider("Oxygen (O) %", min_value=0.0, max_value=100.0, value=30.0, step=0.1,
+                         help="Oxygen content in the waste material")
         
-        st.markdown("---")
-        # Submit button centered in full width
-        submitted = st.form_submit_button("🔥 Predict Hydrogen Production")
-        st.markdown("---")
-
-    # --- HANDLE PREDICTION & DISPLAY RESULTS ---
-    if submitted:
-        # Initial check for model/scaler loading errors
-        if model is None or scaler is None:
-            st.error("❌ Model or scaler not loaded properly. Check the file status in the 'About & Instructions' tab.")
+        # Composition visualization
+        ultimate_sum = C + H + N + O
+        remaining = max(0, 100 - ultimate_sum)
+        
+        fig_composition = go.Figure(data=[
+            go.Bar(name='Composition', 
+                   x=['Carbon', 'Hydrogen', 'Nitrogen', 'Oxygen', 'Other'], 
+                   y=[C, H, N, O, remaining],
+                   marker_color=['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FECA57'])
+        ])
+        fig_composition.update_layout(
+            title="Waste Composition Breakdown",
+            yaxis_title="Percentage (%)",
+            showlegend=False,
+            height=300
+        )
+        st.plotly_chart(fig_composition, use_container_width=True)
+        
+        if ultimate_sum > 100:
+            st.error("⚠️ Ultimate Analysis sum cannot exceed 100%")
         else:
-            # Full validation check
-            input_valid = True
-            if ultimate_sum > 100:
-                st.error("❌ Ultimate Analysis sum cannot exceed 100%. Please adjust.")
-                input_valid = False
-            if SC >= 100:
-                st.error("❌ Solid Content must be less than 100%. Please adjust.")
-                input_valid = False
-            if waste_amount <= 0:
-                st.error("❌ Waste amount must be greater than 0 kg. Please adjust.")
-                input_valid = False
+            st.success(f"✅ Composition sum: {ultimate_sum:.1f}% (Remaining: {remaining:.1f}%)")
+    
+    with tab2:
+        st.subheader("Process Parameters")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            SC = st.slider("Solid Content (%)", min_value=0.1, max_value=99.9, value=15.0, step=0.1,
+                          help="Percentage of solid content in the waste")
+            TEMP = st.slider("Temperature (°C)", min_value=300, max_value=650, value=500, step=10,
+                            help="Reaction temperature")
+            waste_type = st.selectbox(
+                "Waste Type",
+                options=list(CARBON_REDUCTION_FACTORS.keys()),
+                index=0,
+                help="Type of waste material being processed"
+            )
+        
+        with col2:
+            P = st.slider("Pressure (MPa)", min_value=10, max_value=35, value=25, step=1,
+                         help="Reaction pressure")
+            RT = st.slider("Reaction Time (min)", min_value=0.0, max_value=120.0, value=30.0, step=1.0,
+                          help="Duration of the reaction")
+            waste_amount = st.number_input("Waste Amount (kg)", min_value=0.1, value=100.0, step=1.0,
+                                         help="Total amount of waste to be processed")
+    
+    st.markdown('</div>', unsafe_allow_html=True)
 
-            if input_valid:
-                try:
-                    # Prepare features for prediction
-                    features = [C, H, N, O, SC, TEMP, P, RT]
-                    features_array = np.array(features).reshape(1, -1)
-                    
-                    # Scale the features
-                    features_scaled = scaler.transform(features_array)
-                    
-                    # Make prediction
-                    with st.spinner('Calculating H₂ yield and environmental impact...'):
-                        h2_yield = model.predict(features_scaled)[0]
-                    
-                    # Post-prediction calculations
-                    total_h2_mol = h2_yield * waste_amount
-                    total_h2_kg = total_h2_mol * 0.002016  # 1 mole H2 = 0.002016 kg
-                    
-                    # Calculate CO2e reduction
-                    waste_amount_tonnes = waste_amount / 1000
-                    carbon_reduction = CARBON_REDUCTION_FACTORS.get(waste_type, 0) * waste_amount_tonnes
-                    carbon_sequestration = carbon_reduction / TREE_SEQUESTRATION_FACTOR
-                    car_travel_km = carbon_reduction / CAR_EMISSIONS_FACTOR
-                    co2_saved_h2 = total_h2_kg * BLUE_H2_SAVINGS_FACTOR 
-                    
-                    st.success("✅ Prediction completed successfully! Review the results below.")
-                    st.subheader("📈 Predicted Results")
-                    
-                    ### H2 Production Metrics ###
-                    st.markdown("### Hydrogen Production")
-                    col1, col2, col3 = st.columns(3)
-                    
-                    with col1:
-                        st.metric("H₂ Yield", f"**{h2_yield:.2f} mol/kg**", help="Moles of Hydrogen produced per kg of dry waste feed.")
-                    
-                    with col2:
-                        st.metric("Total H₂ Production (kg)", f"**{total_h2_kg:.2f} kg**", help="Total mass of Hydrogen produced based on the input waste amount.")
-                        
-                    with col3:
-                        st.metric("Total H₂ Production (mol)", f"**{total_h2_mol:.2f} mol**", help="Total moles of Hydrogen produced.")
-                    
-                    ### Environmental Impact Metrics ###
-                    st.markdown("### Environmental Impact (Avoided Emissions)")
-                    col4, col5, col6 = st.columns(3)
-                    
-                    with col4:
-                        st.metric("CO₂ Reduction (SCWG vs Landfill)", f"**{carbon_reduction:.0f} kg CO₂e**", help=f"Estimated CO₂ equivalent saved by choosing SCWG over landfill for {waste_type}.")
-                        
-                    with col5:
-                        st.metric("Equivalent Tree Sequestration", f"**{carbon_sequestration:.1f} tree-years**", help=f"Amount of CO₂ reduction equivalent to sequestration by this many trees over one year.")
-                    
-                    with col6:
-                        st.metric("Equivalent Car Travel Avoided", f"**{car_travel_km:.0f} km**", help=f"Amount of CO₂ reduction equivalent to the emissions from driving a standard car this far.")
-
-                    # Use an expander for additional context
-                    with st.expander("ℹ️ Detailed Context & Assumptions"):
-                        st.markdown("#### Input Summary")
-                        st.json({
-                            "Waste Type": waste_type,
-                            "Waste Amount": f"{waste_amount} kg",
-                            "Composition": f"C:{C}%, H:{H}%, N:{N}%, O:{O}%",
-                            "Process Conditions": f"SC:{SC}%, Temp:{TEMP}°C, Pres:{P} MPa, Time:{RT} min"
-                        })
-                        
-                        st.markdown("#### Environmental Factor Breakdown")
-                        st.table({
-                            "Factor": ["CO₂ Reduction Factor", "Tree Sequestration", "Car Emissions"],
-                            "Value": [f"{CARBON_REDUCTION_FACTORS.get(waste_type, 0)} kgCO₂e/tonne", f"{TREE_SEQUESTRATION_FACTOR} kg CO₂/tree/year", f"{CAR_EMISSIONS_FACTOR} kg CO₂/km"]
-                        })
-                        
-                except Exception as e:
-                    st.error(f"❌ An unexpected error occurred during prediction: {str(e)}")
-
-
-with tab_info:
-    st.header("💡 SCWG Explained")
+with col2:
+    # Information panel
     st.markdown("""
-    **Supercritical Water Gasification (SCWG)** is a process that uses water above its critical point 
-    ($374^{\circ}C$ and $22.1$ MPa) to convert wet biomass and organic waste into a hydrogen-rich gas.
-    This method is highly efficient for wet feedstock as it bypasses energy-intensive drying processes.
-    """)
-    # st.image("path/to/your/SCWG_diagram.png") # Uncomment and use this if you have a diagram image file
-    # The line that caused the error has been safely removed/commented.
-
-    st.header("📁 File Requirements & Status")
-    st.markdown("""
-    The application relies on two crucial files for prediction:
-    1.  **`rf_model.pkl`**: The trained Machine Learning model (Random Forest Regressor).
-    2.  **`scaler.pkl`**: The preprocessing scaler used on the training data.
-    """)
+    <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 2rem; border-radius: 10px; height: 100%;'>
+    <h3 style='color: white; margin-bottom: 1rem;'>💡 About SCWG</h3>
+    <p style='color: white; font-size: 0.9rem;'>
+    Supercritical Water Gasification (SCWG) is an advanced technology that converts wet biomass and waste materials into hydrogen-rich syngas using water at supercritical conditions.
+    </p>
+    <h4 style='color: white; margin-top: 1.5rem;'>🎯 Key Benefits</h4>
+    <ul style='color: white; font-size: 0.9rem;'>
+    <li>High hydrogen yield</li>
+    <li>Wet feedstock processing</li>
+    <li>Reduced carbon emissions</li>
+    <li>Waste-to-energy conversion</li>
+    </ul>
+    </div>
+    """, unsafe_allow_html=True)
     
-    st.warning("⚠️ **IMPORTANT**: Both files must be present in the same directory as this Streamlit script.")
-    
-    # Check file status and display clearly
-    col_model, col_scaler = st.columns(2)
-    
-    with col_model:
+    # File status
+    st.markdown("### 📁 Model Status")
+    status_col1, status_col2 = st.columns(2)
+    with status_col1:
         if os.path.exists('rf_model.pkl'):
-            st.success("✅ `rf_model.pkl` found and loaded.")
+            st.success("✅ Model Ready")
         else:
-            st.error("❌ `rf_model.pkl` missing.")
-    
-    with col_scaler:
+            st.error("❌ Model Missing")
+    with status_col2:
         if os.path.exists('scaler.pkl'):
-            st.success("✅ `scaler.pkl` found and loaded.")
+            st.success("✅ Scaler Ready")
         else:
-            st.error("❌ `scaler.pkl` missing.")
+            st.error("❌ Scaler Missing")
+
+# Prediction Button
+col1, col2, col3 = st.columns([1, 2, 1])
+with col2:
+    predict_btn = st.button("🚀 Predict Hydrogen Production", 
+                          use_container_width=True, 
+                          type="primary",
+                          disabled=(model is None or scaler is None))
+
+# Handle prediction
+if predict_btn:
+    if model is None or scaler is None:
+        st.error("❌ Model or scaler not loaded properly. Please check your .pkl files.")
+    elif ultimate_sum > 100:
+        st.error("⚠️ Please adjust the Ultimate Analysis values (sum must be ≤100%)")
+    elif SC >= 100:
+        st.error("⚠️ Solid Content must be less than 100%")
+    elif waste_amount <= 0:
+        st.error("⚠️ Waste amount must be greater than 0 kg")
+    else:
+        try:
+            # Prepare features and make prediction
+            features = [C, H, N, O, SC, TEMP, P, RT]
+            features_array = np.array(features).reshape(1, -1)
+            features_scaled = scaler.transform(features_array)
             
-    st.header("⚙️ Data Inputs")
-    st.markdown("""
-    * **Ultimate Analysis (C, H, N, O)**: The chemical breakdown of the dry waste.
-    * **Solid Content (SC)**: The concentration of the waste in the aqueous feed.
-    * **Temperature (TEMP) & Pressure (P)**: The primary variables controlling the SCWG process efficiency.
-    * **Reaction Time (RT)**: The duration for gasification to occur.
-    """)
+            with st.spinner('🔬 Analyzing parameters and predicting hydrogen yield...'):
+                h2_yield = model.predict(features_scaled)[0]
+            
+            # Calculate results
+            total_h2_mol = h2_yield * waste_amount
+            total_h2_kg = total_h2_mol * 0.002016
+            waste_amount_tonnes = waste_amount / 1000
+            carbon_reduction = CARBON_REDUCTION_FACTORS.get(waste_type, 0) * waste_amount_tonnes
+            carbon_sequestration = carbon_reduction / TREE_SEQUESTRATION_FACTOR
+            car_travel_km = carbon_reduction / CAR_EMISSIONS_FACTOR
+            co2_saved_h2 = total_h2_kg * BLUE_H2_SAVINGS_FACTOR
+            
+            # Results Section
+            st.markdown("---")
+            st.markdown('<h2 style="text-align: center; color: #1f77b4;">📊 Prediction Results</h2>', unsafe_allow_html=True)
+            
+            # Main metrics in cards
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                st.markdown('<div class="prediction-card">', unsafe_allow_html=True)
+                st.metric("H₂ Yield", f"{h2_yield:.2f} mol/kg", delta="Optimal" if h2_yield > 10 else "Good")
+                st.metric("Total H₂ Production", f"{total_h2_kg:.2f} kg")
+                st.markdown('</div>', unsafe_allow_html=True)
+            
+            with col2:
+                st.markdown('<div class="environment-card">', unsafe_allow_html=True)
+                st.metric("CO₂ Reduction", f"{carbon_reduction:.0f} kgCO₂e", 
+                         delta=f"Equivalent to {carbon_sequestration:.0f} trees")
+                st.metric("Car Travel Equivalent", f"{car_travel_km:.0f} km")
+                st.markdown('</div>', unsafe_allow_html=True)
+            
+            with col3:
+                st.markdown('<div class="metric-card">', unsafe_allow_html=True)
+                st.metric("Process Efficiency", f"{(h2_yield/30*100):.1f}%", 
+                         delta="High" if h2_yield > 15 else "Medium")
+                st.metric("CO₂ Saved vs Blue H₂", f"{co2_saved_h2:.1f} kgCO₂e")
+                st.markdown('</div>', unsafe_allow_html=True)
+            
+            # Detailed results in expandable section
+            with st.expander("📋 Detailed Analysis", expanded=True):
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    st.subheader("Input Summary")
+                    st.write(f"**Waste Type:** {waste_type}")
+                    st.write(f"**Waste Amount:** {waste_amount} kg ({waste_amount_tonnes:.3f} tonnes)")
+                    st.write(f"**Temperature:** {TEMP}°C")
+                    st.write(f"**Pressure:** {P} MPa")
+                    st.write(f"**Reaction Time:** {RT} min")
+                
+                with col2:
+                    st.subheader("Composition")
+                    st.write(f"**Carbon (C):** {C}%")
+                    st.write(f"**Hydrogen (H):** {H}%")
+                    st.write(f"**Nitrogen (N):** {N}%")
+                    st.write(f"**Oxygen (O):** {O}%")
+                    st.write(f"**Solid Content:** {SC}%")
+            
+            # Environmental Impact Visualization
+            st.subheader("🌍 Environmental Impact")
+            
+            impact_data = {
+                'Metric': ['CO₂ Reduction', 'Tree Equivalence', 'Car Travel Saved', 'H₂ Production'],
+                'Value': [carbon_reduction, carbon_sequestration, car_travel_km, total_h2_kg],
+                'Unit': ['kgCO₂e', 'tree-years', 'km', 'kg H₂']
+            }
+            
+            fig_impact = go.Figure(data=[
+                go.Bar(name='Environmental Impact', 
+                       x=impact_data['Metric'], 
+                       y=impact_data['Value'],
+                       text=[f"{val:.0f} {unit}" for val, unit in zip(impact_data['Value'], impact_data['Unit'])],
+                       textposition='auto',
+                       marker_color=['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4'])
+            ])
+            fig_impact.update_layout(
+                title="Environmental Benefits Overview",
+                yaxis_title="Impact Value",
+                showlegend=False,
+                height=400
+            )
+            st.plotly_chart(fig_impact, use_container_width=True)
+            
+        except Exception as e:
+            st.error(f"❌ Prediction error: {str(e)}")
 
-
-# --- FOOTER ---
+# Footer
 st.markdown("---")
-st.markdown("<p style='text-align: center; font-style: italic; color: grey;'>SCWG Hydrogen Production Predictor - Using Machine Learning for Sustainable Energy Solutions</p>", unsafe_allow_html=True)
+st.markdown("""
+<div style='text-align: center; color: #666;'>
+<b>SCWG Hydrogen Production Predictor</b> - Using Machine Learning for Sustainable Energy Solutions 🌱
+</div>
+""", unsafe_allow_html=True)
