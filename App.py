@@ -38,6 +38,12 @@ st.markdown("""
         padding: 1.5rem;
         border-radius: 10px;
     }
+    .hydrogen-card {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 1.5rem;
+        border-radius: 10px;
+    }
     .input-section {
         background-color: #ffffff;
         padding: 2rem;
@@ -50,6 +56,13 @@ st.markdown("""
         border-radius: 5px;
         padding: 0.5rem;
         border: 1px solid #dee2e6;
+    }
+    .validation-error {
+        background-color: #ffe6e6;
+        border-left: 4px solid #ff4d4d;
+        padding: 1rem;
+        border-radius: 5px;
+        margin: 1rem 0;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -86,9 +99,9 @@ CARBON_REDUCTION_FACTORS = {
     'Petrochemical': 240
 }
 
-TREE_SEQUESTRATION_FACTOR = 25
-CAR_EMISSIONS_FACTOR = 0.250
-BLUE_H2_SAVINGS_FACTOR = 1.6
+TREE_SEQUESTRATION_FACTOR = 25  # kg CO2/tree/year
+CAR_EMISSIONS_FACTOR = 0.250    # kg CO2/km for 1.8L gasoline car
+BLUE_H2_SAVINGS_FACTOR = 1.6    # kg CO2 saved per kg H2 compared to gasoline
 
 # Header Section
 col1, col2, col3 = st.columns([1, 2, 1])
@@ -193,7 +206,7 @@ with col1:
             SC = st.number_input("Solid Content (%)", min_value=0.1, max_value=99.9, value=15.0, step=0.01, format="%.2f",
                                help="Percentage of solid content in the waste")
             TEMP = st.number_input("Temperature (°C)", min_value=300.0, max_value=650.0, value=500.0, step=0.1, format="%.1f",
-                                 help="Reaction temperature")
+                                 help="Reaction temperature (300-650°C)")
             waste_type = st.selectbox(
                 "Waste Type",
                 options=list(CARBON_REDUCTION_FACTORS.keys()),
@@ -205,7 +218,7 @@ with col1:
         with col2:
             st.markdown('<div class="number-input">', unsafe_allow_html=True)
             P = st.number_input("Pressure (MPa)", min_value=10.0, max_value=35.0, value=25.0, step=0.1, format="%.1f",
-                              help="Reaction pressure")
+                              help="Reaction pressure (10-35 MPa)")
             RT = st.number_input("Reaction Time (min)", min_value=0.0, max_value=120.0, value=30.0, step=0.1, format="%.1f",
                                help="Duration of the reaction")
             waste_amount = st.number_input("Waste Amount (kg)", min_value=0.1, value=100.0, step=0.1, format="%.2f",
@@ -236,20 +249,9 @@ with col2:
     st.markdown("### ⚡ Quick Presets")
     
     if st.button("Biomass Default", use_container_width=True):
-        # Using session state to store values
-        st.session_state.C = 50.0
-        st.session_state.H = 6.0
-        st.session_state.N = 2.0
-        st.session_state.O = 30.0
-        st.session_state.SC = 15.0
         st.rerun()
     
     if st.button("Sludge Default", use_container_width=True):
-        st.session_state.C = 45.0
-        st.session_state.H = 5.5
-        st.session_state.N = 3.0
-        st.session_state.O = 35.0
-        st.session_state.SC = 12.5
         st.rerun()
     
     # File status
@@ -266,18 +268,6 @@ with col2:
         else:
             st.error("❌ Scaler Missing")
 
-# Initialize session state for inputs
-if 'C' not in st.session_state:
-    st.session_state.C = 50.0
-if 'H' not in st.session_state:
-    st.session_state.H = 6.0
-if 'N' not in st.session_state:
-    st.session_state.N = 2.0
-if 'O' not in st.session_state:
-    st.session_state.O = 30.0
-if 'SC' not in st.session_state:
-    st.session_state.SC = 15.0
-
 # Prediction Button
 col1, col2, col3 = st.columns([1, 2, 1])
 with col2:
@@ -290,97 +280,191 @@ with col2:
 if predict_btn:
     if model is None or scaler is None:
         st.error("❌ Model or scaler not loaded properly. Please check your .pkl files.")
-    elif ultimate_sum > 100:
-        st.error("⚠️ Please adjust the Ultimate Analysis values (sum must be ≤100%)")
-    elif SC >= 100:
-        st.error("⚠️ Solid Content must be less than 100%")
-    elif waste_amount <= 0:
-        st.error("⚠️ Waste amount must be greater than 0 kg")
     else:
-        try:
-            # Prepare features and make prediction
-            features = [C, H, N, O, SC, TEMP, P, RT]
-            features_array = np.array(features).reshape(1, -1)
-            features_scaled = scaler.transform(features_array)
-            
-            with st.spinner('🔬 Analyzing parameters and predicting hydrogen yield...'):
-                h2_yield = model.predict(features_scaled)[0]
-            
-            # Calculate results
-            total_h2_mol = h2_yield * waste_amount
-            total_h2_kg = total_h2_mol * 0.002016
-            waste_amount_tonnes = waste_amount / 1000
-            carbon_reduction = CARBON_REDUCTION_FACTORS.get(waste_type, 0) * waste_amount_tonnes
-            carbon_sequestration = carbon_reduction / TREE_SEQUESTRATION_FACTOR
-            car_travel_km = carbon_reduction / CAR_EMISSIONS_FACTOR
-            co2_saved_h2 = total_h2_kg * BLUE_H2_SAVINGS_FACTOR
-            
-            # Results Section
-            st.markdown("---")
-            st.markdown('<h2 style="text-align: center; color: #1f77b4;">📊 Prediction Results</h2>', unsafe_allow_html=True)
-            
-            # Main metrics in cards
-            col1, col2, col3 = st.columns(3)
-            
-            with col1:
-                st.markdown('<div class="prediction-card">', unsafe_allow_html=True)
-                st.metric("H₂ Yield", f"{h2_yield:.3f} mol/kg", delta="Optimal" if h2_yield > 10 else "Good")
-                st.metric("Total H₂ Production", f"{total_h2_kg:.3f} kg")
-                st.markdown('</div>', unsafe_allow_html=True)
-            
-            with col2:
-                st.markdown('<div class="environment-card">', unsafe_allow_html=True)
-                st.metric("CO₂ Reduction", f"{carbon_reduction:.2f} kgCO₂e", 
-                         delta=f"Equivalent to {carbon_sequestration:.1f} trees")
-                st.metric("Car Travel Equivalent", f"{car_travel_km:.1f} km")
-                st.markdown('</div>', unsafe_allow_html=True)
-            
-            with col3:
-                st.markdown('<div class="metric-card">', unsafe_allow_html=True)
-                st.metric("Process Efficiency", f"{(h2_yield/30*100):.2f}%", 
-                         delta="High" if h2_yield > 15 else "Medium")
-                st.metric("CO₂ Saved vs Blue H₂", f"{co2_saved_h2:.2f} kgCO₂e")
-                st.markdown('</div>', unsafe_allow_html=True)
-            
-            # Environmental Impact using native Streamlit chart
-            st.subheader("🌍 Environmental Impact Overview")
-            
-            # Create a simple bar chart data
-            impact_df = {
-                'Metrics': ['CO₂ Reduction', 'Tree Years', 'Car Travel', 'H₂ Production'],
-                'Values': [carbon_reduction, carbon_sequestration, car_travel_km, total_h2_kg]
-            }
-            
-            # Display as bar chart
-            st.bar_chart(data=impact_df, x='Metrics', y='Values', use_container_width=True)
-            
-            # Detailed results in expandable section
-            with st.expander("📋 Detailed Analysis", expanded=True):
-                col1, col2 = st.columns(2)
+        # Validate all inputs exactly as in your original code
+        validation_errors = []
+        
+        # Validate Ultimate Analysis (C + H + N + O <= 100)
+        ultimate_sum = C + H + N + O
+        if ultimate_sum > 100:
+            validation_errors.append("Ultimate Analysis has an issue (sum must be ≤100%)")
+        
+        # Validate Temperature range (300-650)
+        if TEMP < 300 or TEMP > 650:
+            validation_errors.append("Temperature is out of range (300-650°C)")
+        
+        # Validate Pressure range (10-35)
+        if P < 10 or P > 35:
+            validation_errors.append("Pressure is out of range (10-35 MPa)")
+        
+        # Validate Solid Content (SC < 100)
+        if SC >= 100:
+            validation_errors.append("Solid Content is out of range (must be <100%)")
+        
+        # Validate Waste amount (must be positive)
+        if waste_amount <= 0:
+            validation_errors.append("Waste amount must be greater than 0 kg")
+        
+        if validation_errors:
+            for error in validation_errors:
+                st.markdown(f'<div class="validation-error">❌ {error}</div>', unsafe_allow_html=True)
+        else:
+            try:
+                # All validations passed, prepare features for prediction
+                features = [C, H, N, O, SC, TEMP, P, RT]
+                features_array = np.array(features).reshape(1, -1)
                 
-                with col1:
-                    st.subheader("Input Summary")
-                    st.write(f"**Waste Type:** {waste_type}")
-                    st.write(f"**Waste Amount:** {waste_amount:.2f} kg ({waste_amount_tonnes:.4f} tonnes)")
-                    st.write(f"**Temperature:** {TEMP:.1f}°C")
-                    st.write(f"**Pressure:** {P:.1f} MPa")
-                    st.write(f"**Reaction Time:** {RT:.1f} min")
+                # Scale the features using the loaded scaler
+                features_scaled = scaler.transform(features_array)
                 
-                with col2:
-                    st.subheader("Composition")
-                    st.write(f"**Carbon (C):** {C:.2f}%")
-                    st.write(f"**Hydrogen (H):** {H:.2f}%")
-                    st.write(f"**Nitrogen (N):** {N:.2f}%")
-                    st.write(f"**Oxygen (O):** {O:.2f}%")
-                    st.write(f"**Solid Content:** {SC:.2f}%")
-            
-        except Exception as e:
-            st.error(f"❌ Prediction error: {str(e)}")
+                # Make prediction (H2 yield in mol/kg)
+                with st.spinner('🔬 Analyzing parameters and predicting hydrogen yield...'):
+                    h2_yield = model.predict(features_scaled)[0]
+                
+                # Calculate total hydrogen production (mol)
+                total_h2_mol = h2_yield * waste_amount
+                
+                # Convert total hydrogen production to kilograms
+                total_h2_kg = total_h2_mol * 0.002016  # 1 mole H2 = 0.002016 kg
+                
+                # Calculate CO2e reduction (convert waste amount from kg to tonnes)
+                waste_amount_tonnes = waste_amount / 1000
+                carbon_reduction = CARBON_REDUCTION_FACTORS.get(waste_type, 0) * waste_amount_tonnes
+                
+                # Calculate carbon sequestration in tree-years
+                carbon_sequestration = carbon_reduction / TREE_SEQUESTRATION_FACTOR
+                
+                # Calculate equivalent car travel distance
+                car_travel_km = carbon_reduction / CAR_EMISSIONS_FACTOR
+                
+                # Calculate CO2 saved from blue H2 vs gasoline
+                co2_saved_h2 = total_h2_kg * BLUE_H2_SAVINGS_FACTOR
+                
+                # Display results
+                st.markdown("---")
+                st.markdown('<h2 style="text-align: center; color: #1f77b4;">📊 Prediction Results</h2>', unsafe_allow_html=True)
+                
+                # Hydrogen Production Metrics
+                st.subheader("🌱 Hydrogen Production")
+                h2_col1, h2_col2, h2_col3 = st.columns(3)
+                
+                with h2_col1:
+                    st.markdown('<div class="hydrogen-card">', unsafe_allow_html=True)
+                    st.metric("H₂ Yield", f"{h2_yield:.2f} mol/kg", help="Hydrogen yield per kg of waste")
+                    st.metric("Total H₂ Production", f"{total_h2_kg:.2f} kg", help="Total hydrogen produced in kilograms")
+                    st.markdown('</div>', unsafe_allow_html=True)
+                
+                with h2_col2:
+                    st.markdown('<div class="prediction-card">', unsafe_allow_html=True)
+                    st.metric("Total H₂ Moles", f"{total_h2_mol:.2f} mol", help="Total hydrogen produced in moles")
+                    st.metric("Process Efficiency", f"{(h2_yield/30*100):.1f}%", 
+                             delta="High" if h2_yield > 15 else "Medium", help="Efficiency compared to maximum expected yield")
+                    st.markdown('</div>', unsafe_allow_html=True)
+                
+                with h2_col3:
+                    st.markdown('<div class="metric-card">', unsafe_allow_html=True)
+                    st.metric("Waste Processed", f"{waste_amount:.2f} kg", help="Total waste material processed")
+                    st.metric("Waste in Tonnes", f"{waste_amount_tonnes:.4f} tonnes", help="Waste amount converted to tonnes")
+                    st.markdown('</div>', unsafe_allow_html=True)
+                
+                # Environmental Impact Metrics
+                st.subheader("🌍 Environmental Impact")
+                env_col1, env_col2, env_col3 = st.columns(3)
+                
+                with env_col1:
+                    st.markdown('<div class="environment-card">', unsafe_allow_html=True)
+                    st.metric("CO₂ Reduction", f"{carbon_reduction:.2f} kgCO₂e", 
+                             help="Carbon dioxide equivalent reduced")
+                    st.metric("Carbon Sequestration", f"{carbon_sequestration:.2f} tree-years", 
+                             help="Equivalent tree sequestration")
+                    st.markdown('</div>', unsafe_allow_html=True)
+                
+                with env_col2:
+                    st.markdown('<div class="metric-card">', unsafe_allow_html=True)
+                    st.metric("Equivalent Car Travel", f"{car_travel_km:.2f} km", 
+                             help="Equivalent car travel distance saved")
+                    st.metric("CO₂ Saved vs Blue H₂", f"{co2_saved_h2:.2f} kgCO₂e", 
+                             help="CO2 saved compared to blue hydrogen production")
+                    st.markdown('</div>', unsafe_allow_html=True)
+                
+                with env_col3:
+                    st.markdown('<div class="prediction-card">', unsafe_allow_html=True)
+                    st.metric("Waste Type", waste_type, help="Type of waste material processed")
+                    st.metric("Carbon Reduction Factor", f"{CARBON_REDUCTION_FACTORS[waste_type]} kgCO₂e/tonne", 
+                             help="Carbon reduction factor for selected waste type")
+                    st.markdown('</div>', unsafe_allow_html=True)
+                
+                # Environmental Impact Chart
+                st.subheader("📈 Environmental Impact Overview")
+                impact_data = {
+                    'Metric': ['CO₂ Reduction', 'Tree Sequestration', 'Car Travel', 'H₂ Production'],
+                    'Value': [carbon_reduction, carbon_sequestration, car_travel_km, total_h2_kg],
+                    'Unit': ['kgCO₂e', 'tree-years', 'km', 'kg H₂']
+                }
+                
+                # Create a simple bar chart
+                chart_dict = {
+                    'CO₂ Reduction (kgCO₂e)': carbon_reduction,
+                    'Tree Sequestration (tree-years)': carbon_sequestration,
+                    'Car Travel Equivalent (km)': car_travel_km,
+                    'H₂ Production (kg)': total_h2_kg
+                }
+                st.bar_chart(chart_dict)
+                
+                # Detailed results in expandable section
+                with st.expander("📋 Detailed Analysis & Units", expanded=True):
+                    col1, col2 = st.columns(2)
+                    
+                    with col1:
+                        st.subheader("Input Parameters")
+                        st.write(f"**Waste Type:** {waste_type}")
+                        st.write(f"**Waste Amount:** {waste_amount:.2f} kg ({waste_amount_tonnes:.4f} tonnes)")
+                        st.write(f"**Temperature:** {TEMP:.1f}°C")
+                        st.write(f"**Pressure:** {P:.1f} MPa")
+                        st.write(f"**Reaction Time:** {RT:.1f} min")
+                        st.write(f"**Solid Content:** {SC:.2f}%")
+                    
+                    with col2:
+                        st.subheader("Waste Composition")
+                        st.write(f"**Carbon (C):** {C:.2f}%")
+                        st.write(f"**Hydrogen (H):** {H:.2f}%")
+                        st.write(f"**Nitrogen (N):** {N:.2f}%")
+                        st.write(f"**Oxygen (O):** {O:.2f}%")
+                        st.write(f"**Ultimate Analysis Sum:** {ultimate_sum:.2f}%")
+                    
+                    # Units information
+                    st.subheader("📏 Measurement Units")
+                    unit_col1, unit_col2, unit_col3 = st.columns(3)
+                    
+                    with unit_col1:
+                        st.write("**Hydrogen Metrics:**")
+                        st.write("- H₂ Yield: mol/kg")
+                        st.write("- Total H₂: mol")
+                        st.write("- Total H₂: kg")
+                    
+                    with unit_col2:
+                        st.write("**Environmental Metrics:**")
+                        st.write("- CO₂ Reduction: kgCO₂e")
+                        st.write("- Carbon Sequestration: tree-years")
+                        st.write("- Car Travel: km")
+                    
+                    with unit_col3:
+                        st.write("**Conversion Factors:**")
+                        st.write("- 1 mole H₂ = 0.002016 kg")
+                        st.write("- Tree sequestration: 25 kgCO₂/tree/year")
+                        st.write("- Car emissions: 0.250 kgCO₂/km")
+                
+                st.success("✅ Prediction completed successfully!")
+                
+            except Exception as e:
+                st.error(f"❌ Prediction error: {str(e)}")
 
 # Footer
 st.markdown("---")
 st.markdown("""
 <div style='text-align: center; color: #666;'>
 <b>SCWG Hydrogen Production Predictor</b> - Using Machine Learning for Sustainable Energy Solutions 🌱
+<br>
+<small>All predictions are based on the trained machine learning model and conversion factors</small>
 </div>
 """, unsafe_allow_html=True)
