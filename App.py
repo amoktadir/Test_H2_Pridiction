@@ -64,6 +64,10 @@ h3 {
 @st.cache_data
 def load_model():
     try:
+        # Check if file exists before trying to open
+        if not os.path.exists('rf_model.pkl'):
+            st.error("Model file 'rf_model.pkl' not found.")
+            return None
         with open('rf_model.pkl', 'rb') as file:
             model = pickle.load(file)
         return model
@@ -74,6 +78,10 @@ def load_model():
 @st.cache_data
 def load_scaler():
     try:
+        # Check if file exists before trying to open
+        if not os.path.exists('scaler.pkl'):
+            st.error("Scaler file 'scaler.pkl' not found.")
+            return None
         with open('scaler.pkl', 'rb') as file:
             scaler = pickle.load(file)
         return scaler
@@ -134,8 +142,7 @@ with tab_predict:
             # Calculate and display ultimate analysis sum
             ultimate_sum = C + H + N + O
             st.info(f"Ultimate Analysis Sum: **{ultimate_sum:.1f}%**")
-            if ultimate_sum > 100:
-                st.error("⚠️ Ultimate Analysis sum cannot exceed 100%")
+            # Validation feedback moved to the main prediction logic, but this visual cue remains
         
         with col_proc:
             st.subheader("🌡️ Process Conditions & Feedstock")
@@ -172,13 +179,23 @@ with tab_predict:
 
     # --- HANDLE PREDICTION & DISPLAY RESULTS ---
     if submitted:
+        # Initial check for model/scaler loading errors
         if model is None or scaler is None:
-            st.error("❌ Model or scaler not loaded properly. Please check your .pkl files.")
+            st.error("❌ Model or scaler not loaded properly. Check the file status in the 'About & Instructions' tab.")
         else:
-            # Validate inputs
-            if ultimate_sum > 100 or SC >= 100 or waste_amount <= 0:
-                st.error("Please correct the input errors above before predicting.")
-            else:
+            # Full validation check
+            input_valid = True
+            if ultimate_sum > 100:
+                st.error("❌ Ultimate Analysis sum cannot exceed 100%. Please adjust.")
+                input_valid = False
+            if SC >= 100:
+                st.error("❌ Solid Content must be less than 100%. Please adjust.")
+                input_valid = False
+            if waste_amount <= 0:
+                st.error("❌ Waste amount must be greater than 0 kg. Please adjust.")
+                input_valid = False
+
+            if input_valid:
                 try:
                     # Prepare features for prediction
                     features = [C, H, N, O, SC, TEMP, P, RT]
@@ -200,38 +217,36 @@ with tab_predict:
                     carbon_reduction = CARBON_REDUCTION_FACTORS.get(waste_type, 0) * waste_amount_tonnes
                     carbon_sequestration = carbon_reduction / TREE_SEQUESTRATION_FACTOR
                     car_travel_km = carbon_reduction / CAR_EMISSIONS_FACTOR
-                    co2_saved_h2 = total_h2_kg * BLUE_H2_SAVINGS_FACTOR # CO2 saved by using Green H2 instead of Blue H2
+                    co2_saved_h2 = total_h2_kg * BLUE_H2_SAVINGS_FACTOR 
                     
                     st.success("✅ Prediction completed successfully! Review the results below.")
                     st.subheader("📈 Predicted Results")
-                    
-                    # Results organized into two sections: H2 Production and Environmental Impact
                     
                     ### H2 Production Metrics ###
                     st.markdown("### Hydrogen Production")
                     col1, col2, col3 = st.columns(3)
                     
                     with col1:
-                        st.metric("H₂ Yield", f"**{h2_yield:.2f}**", help="Moles of Hydrogen produced per kg of dry waste feed (mol/kg).")
+                        st.metric("H₂ Yield", f"**{h2_yield:.2f} mol/kg**", help="Moles of Hydrogen produced per kg of dry waste feed.")
                     
                     with col2:
-                        st.metric("Total H₂ Production (kg)", f"**{total_h2_kg:.2f}**", help="Total mass of Hydrogen produced based on the input waste amount.")
+                        st.metric("Total H₂ Production (kg)", f"**{total_h2_kg:.2f} kg**", help="Total mass of Hydrogen produced based on the input waste amount.")
                         
                     with col3:
-                        st.metric("Total H₂ Production (mol)", f"**{total_h2_mol:.2f}**", help="Total moles of Hydrogen produced.")
+                        st.metric("Total H₂ Production (mol)", f"**{total_h2_mol:.2f} mol**", help="Total moles of Hydrogen produced.")
                     
                     ### Environmental Impact Metrics ###
                     st.markdown("### Environmental Impact (Avoided Emissions)")
                     col4, col5, col6 = st.columns(3)
                     
                     with col4:
-                        st.metric("CO₂ Reduction (SCWG vs Landfill)", f"**{carbon_reduction:.0f}** kg CO₂e", help=f"Estimated CO₂ equivalent saved by choosing SCWG over landfill for {waste_type}.")
+                        st.metric("CO₂ Reduction (SCWG vs Landfill)", f"**{carbon_reduction:.0f} kg CO₂e**", help=f"Estimated CO₂ equivalent saved by choosing SCWG over landfill for {waste_type}.")
                         
                     with col5:
-                        st.metric("Equivalent Tree Sequestration", f"**{carbon_sequestration:.1f}** tree-years", help=f"Amount of CO₂ reduction equivalent to the sequestration by this many trees over one year (25 kg CO₂/tree/year).")
+                        st.metric("Equivalent Tree Sequestration", f"**{carbon_sequestration:.1f} tree-years**", help=f"Amount of CO₂ reduction equivalent to sequestration by this many trees over one year.")
                     
                     with col6:
-                        st.metric("Equivalent Car Travel Avoided", f"**{car_travel_km:.0f}** km", help=f"Amount of CO₂ reduction equivalent to the emissions from driving a standard car this far.")
+                        st.metric("Equivalent Car Travel Avoided", f"**{car_travel_km:.0f} km**", help=f"Amount of CO₂ reduction equivalent to the emissions from driving a standard car this far.")
 
                     # Use an expander for additional context
                     with st.expander("ℹ️ Detailed Context & Assumptions"):
@@ -260,17 +275,8 @@ with tab_info:
     ($374^{\circ}C$ and $22.1$ MPa) to convert wet biomass and organic waste into a hydrogen-rich gas.
     This method is highly efficient for wet feedstock as it bypasses energy-intensive drying processes.
     """)
-    
-
-with tab_info:
-    st.header("💡 SCWG Explained")
-    st.markdown("""
-    **Supercritical Water Gasification (SCWG)** is a process that uses water above its critical point 
-    ($374^{\circ}C$ and $22.1$ MPa) to convert wet biomass and organic waste into a hydrogen-rich gas.
-    This method is highly efficient for wet feedstock as it bypasses energy-intensive drying processes.
-    """)
-    # st.image("path/to/your/image.png") # Use this if you have a local image file
-    #  # <-- Removed the raw tag or commented it out
+    # st.image("path/to/your/SCWG_diagram.png") # Uncomment and use this if you have a diagram image file
+    # The line that caused the error has been safely removed/commented.
 
     st.header("📁 File Requirements & Status")
     st.markdown("""
