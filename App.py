@@ -2,8 +2,6 @@ import streamlit as st
 import pickle
 import numpy as np
 import os
-import plotly.graph_objects as go
-from plotly.subplots import make_subplots
 
 # Set page configuration
 st.set_page_config(
@@ -46,6 +44,12 @@ st.markdown("""
         border-radius: 10px;
         box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
         margin-bottom: 2rem;
+    }
+    .composition-bar {
+        background: linear-gradient(90deg, #FF6B6B, #4ECDC4, #45B7D1, #96CEB4, #FECA57);
+        height: 30px;
+        border-radius: 15px;
+        margin: 10px 0;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -123,23 +127,59 @@ with col1:
             O = st.slider("Oxygen (O) %", min_value=0.0, max_value=100.0, value=30.0, step=0.1,
                          help="Oxygen content in the waste material")
         
-        # Composition visualization
+        # Composition visualization using native Streamlit
         ultimate_sum = C + H + N + O
         remaining = max(0, 100 - ultimate_sum)
         
-        fig_composition = go.Figure(data=[
-            go.Bar(name='Composition', 
-                   x=['Carbon', 'Hydrogen', 'Nitrogen', 'Oxygen', 'Other'], 
-                   y=[C, H, N, O, remaining],
-                   marker_color=['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FECA57'])
-        ])
-        fig_composition.update_layout(
-            title="Waste Composition Breakdown",
-            yaxis_title="Percentage (%)",
-            showlegend=False,
-            height=300
-        )
-        st.plotly_chart(fig_composition, use_container_width=True)
+        st.subheader("Composition Breakdown")
+        
+        # Create a simple bar visualization using columns
+        comp_data = {
+            'Component': ['Carbon', 'Hydrogen', 'Nitrogen', 'Oxygen', 'Other'],
+            'Percentage': [C, H, N, O, remaining],
+            'Color': ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FECA57']
+        }
+        
+        # Display composition as metrics
+        comp_col1, comp_col2, comp_col3, comp_col4, comp_col5 = st.columns(5)
+        
+        with comp_col1:
+            st.metric("Carbon", f"{C:.1f}%", delta=None, delta_color="off")
+        with comp_col2:
+            st.metric("Hydrogen", f"{H:.1f}%", delta=None, delta_color="off")
+        with comp_col3:
+            st.metric("Nitrogen", f"{N:.1f}%", delta=None, delta_color="off")
+        with comp_col4:
+            st.metric("Oxygen", f"{O:.1f}%", delta=None, delta_color="off")
+        with comp_col5:
+            st.metric("Other", f"{remaining:.1f}%", delta=None, delta_color="off")
+        
+        # Simple progress bar representation
+        st.write("**Composition Visualization:**")
+        total_width = 100
+        composition_html = f"""
+        <div style="display: flex; width: 100%; height: 30px; border-radius: 15px; overflow: hidden; margin: 10px 0;">
+            <div style="background: #FF6B6B; width: {C}%; height: 100%;" title="Carbon: {C}%"></div>
+            <div style="background: #4ECDC4; width: {H}%; height: 100%;" title="Hydrogen: {H}%"></div>
+            <div style="background: #45B7D1; width: {N}%; height: 100%;" title="Nitrogen: {N}%"></div>
+            <div style="background: #96CEB4; width: {O}%; height: 100%;" title="Oxygen: {O}%"></div>
+            <div style="background: #FECA57; width: {remaining}%; height: 100%;" title="Other: {remaining}%"></div>
+        </div>
+        """
+        st.markdown(composition_html, unsafe_allow_html=True)
+        
+        # Legend
+        legend_col1, legend_col2, legend_col3, legend_col4, legend_col5 = st.columns(5)
+        with legend_col1:
+            st.markdown("🔴 **Carbon**")
+        with legend_col2:
+            st.markdown("🔵 **Hydrogen**")
+        with legend_col3:
+            st.markdown("🔷 **Nitrogen**")
+        with legend_col4:
+            st.markdown("💚 **Oxygen**")
+        with legend_col5:
+            st.markdown("💛 **Other**")
         
         if ultimate_sum > 100:
             st.error("⚠️ Ultimate Analysis sum cannot exceed 100%")
@@ -269,6 +309,24 @@ if predict_btn:
                 st.metric("CO₂ Saved vs Blue H₂", f"{co2_saved_h2:.1f} kgCO₂e")
                 st.markdown('</div>', unsafe_allow_html=True)
             
+            # Environmental Impact using native Streamlit chart
+            st.subheader("🌍 Environmental Impact Overview")
+            
+            impact_data = {
+                'Metric': ['CO₂ Reduction', 'Tree Equivalence', 'Car Travel Saved', 'H₂ Production'],
+                'Value': [carbon_reduction, carbon_sequestration, car_travel_km, total_h2_kg]
+            }
+            
+            # Use Streamlit's native bar chart
+            chart_data = {
+                'CO₂ Reduction (kgCO₂e)': carbon_reduction,
+                'Tree Years': carbon_sequestration,
+                'Car Travel (km)': car_travel_km,
+                'H₂ Production (kg)': total_h2_kg
+            }
+            
+            st.bar_chart(chart_data)
+            
             # Detailed results in expandable section
             with st.expander("📋 Detailed Analysis", expanded=True):
                 col1, col2 = st.columns(2)
@@ -288,31 +346,6 @@ if predict_btn:
                     st.write(f"**Nitrogen (N):** {N}%")
                     st.write(f"**Oxygen (O):** {O}%")
                     st.write(f"**Solid Content:** {SC}%")
-            
-            # Environmental Impact Visualization
-            st.subheader("🌍 Environmental Impact")
-            
-            impact_data = {
-                'Metric': ['CO₂ Reduction', 'Tree Equivalence', 'Car Travel Saved', 'H₂ Production'],
-                'Value': [carbon_reduction, carbon_sequestration, car_travel_km, total_h2_kg],
-                'Unit': ['kgCO₂e', 'tree-years', 'km', 'kg H₂']
-            }
-            
-            fig_impact = go.Figure(data=[
-                go.Bar(name='Environmental Impact', 
-                       x=impact_data['Metric'], 
-                       y=impact_data['Value'],
-                       text=[f"{val:.0f} {unit}" for val, unit in zip(impact_data['Value'], impact_data['Unit'])],
-                       textposition='auto',
-                       marker_color=['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4'])
-            ])
-            fig_impact.update_layout(
-                title="Environmental Benefits Overview",
-                yaxis_title="Impact Value",
-                showlegend=False,
-                height=400
-            )
-            st.plotly_chart(fig_impact, use_container_width=True)
             
         except Exception as e:
             st.error(f"❌ Prediction error: {str(e)}")
