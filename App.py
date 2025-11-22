@@ -262,8 +262,15 @@ with tab_info:
     """)
     
 
-[Image of supercritical water gasification process]
-
+with tab_info:
+    st.header("💡 SCWG Explained")
+    st.markdown("""
+    **Supercritical Water Gasification (SCWG)** is a process that uses water above its critical point 
+    ($374^{\circ}C$ and $22.1$ MPa) to convert wet biomass and organic waste into a hydrogen-rich gas.
+    This method is highly efficient for wet feedstock as it bypasses energy-intensive drying processes.
+    """)
+    # st.image("path/to/your/image.png") # Use this if you have a local image file
+    #  # <-- Removed the raw tag or commented it out
 
     st.header("📁 File Requirements & Status")
     st.markdown("""
