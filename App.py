@@ -64,6 +64,18 @@ st.markdown("""
         border-radius: 5px;
         margin: 1rem 0;
     }
+    .explanation-box {
+        background-color: #f8f9fa;
+        border-left: 4px solid #1f77b4;
+        padding: 1.5rem;
+        border-radius: 8px;
+        margin: 1rem 0;
+    }
+    .explanation-title {
+        color: #1f77b4;
+        font-weight: bold;
+        margin-bottom: 0.5rem;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -230,7 +242,7 @@ with col1:
 with col2:
     # Information panel
     st.markdown("""
-    <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 2rem; border-radius: 10px; height: 100%;'>
+    <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 2rem; border-radius: 10px;'>
     <h3 style='color: white; margin-bottom: 1rem;'>💡 About SCWG</h3>
     <p style='color: white; font-size: 0.9rem;'>
     Supercritical Water Gasification (SCWG) is an advanced technology that converts wet biomass and waste materials into hydrogen-rich syngas using water at supercritical conditions.
@@ -245,14 +257,50 @@ with col2:
     </div>
     """, unsafe_allow_html=True)
     
-    # Quick input presets
-    st.markdown("### ⚡ Quick Presets")
+    # Environmental Impact Explanations
+    st.markdown("## 🌍 Environmental Impact Factors")
     
-    if st.button("Biomass Default", use_container_width=True):
-        st.rerun()
+    # CO2 Saved from blue H2 vs Gasoline
+    st.markdown("""
+    <div class="explanation-box">
+    <div class="explanation-title">CO₂ Saved from Blue H₂ vs Gasoline Fuel</div>
+    The amount of CO₂ is reduced by application of blue H₂ @7.5 kg CO₂ using H₂ as fuel compared to Gasoline fuel (400 g/mile) in vehicles. 
+    Hence, taking average for CO₂ using H₂ which is around 3 kg of CO₂ only. This results in significant CO₂ savings when using hydrogen as a clean fuel alternative.
+    </div>
+    """, unsafe_allow_html=True)
     
-    if st.button("Sludge Default", use_container_width=True):
-        st.rerun()
+    # Carbon Sequestration Factor
+    st.markdown("""
+    <div class="explanation-box">
+    <div class="explanation-title">Carbon Sequestration Factor (25 kg CO₂/tree/year)</div>
+    The amount of CO₂ storage by a tree in one year is the Tree Sequestration Factor. This factor has been utilized as an indicator in current scenarios. 
+    It is assumed that the tree sequestration factor is 25 kg of CO₂ per year based on average of all multiple tree species. This helps quantify the environmental benefit in relatable terms.
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Car Travel Equivalent
+    st.markdown("""
+    <div class="explanation-box">
+    <div class="explanation-title">Equivalent of 1.8L Gasoline Car Travel (0.250 kg CO₂/km)</div>
+    The amount of CO₂ released by a 1.8L car traveling using gasoline as fuel. Average domestic vehicles produce around 250 grams of CO₂ per kilometer. 
+    This equivalence helps visualize the carbon reduction impact by comparing it to familiar car travel distances.
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # SCWG Carbon Reduction
+    st.markdown("""
+    <div class="explanation-box">
+    <div class="explanation-title">SCWG Net Carbon Footprint Reduction</div>
+    SCWG technology significantly reduces carbon footprint compared to traditional land disposal methods. 
+    The carbon reduction factors vary by waste type:
+    <ul>
+    <li><strong>Sewage Sludge:</strong> 310 kg CO₂e per tonne</li>
+    <li><strong>Lignocellulosic Biomass:</strong> 400 kg CO₂e per tonne</li>
+    <li><strong>Petrochemical:</strong> 240 kg CO₂e per tonne</li>
+    </ul>
+    These reductions account for avoided methane emissions and carbon sequestration in the SCWG process.
+    </div>
+    """, unsafe_allow_html=True)
     
     # File status
     st.markdown("### 📁 Model Status")
